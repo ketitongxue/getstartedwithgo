@@ -23,7 +23,8 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
+	"io"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -48,22 +49,8 @@ to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 创建默认的应用命令行选项
 		opts := NewServerOptions()
-		// 将 viper 中的配置解析到选项 opts 变量中.
-		if err := viper.Unmarshal(opts); err != nil {
-			return err
-		}
 
-		// 对命令行选项值进行校验.
-		if err := opts.Validate(); err != nil {
-			return err
-		}
-
-		fmt.Printf("Read MySQL host from Viper: %s\n", viper.GetString("mysql.host"))
-		fmt.Printf("Read MySQL username from opts: %s\n", opts.MySQLOptions.Username)
-
-		jsonData, _ := json.MarshalIndent(opts, "", "  ")
-		fmt.Println(string(jsonData))
-		return nil
+		return run(opts)
 	},
 	// 设置命令运行时的参数检查，不需要指定命令行参数。例如：./fg-apiserver param1 param2
 	Args:    cobra.NoArgs,
@@ -98,4 +85,85 @@ func init() {
 	// cobra 支持持久性标志(PersistentFlag)，该标志可用于它所分配的命令以及该命令下的每个子命令
 	// 推荐使用配置文件来配置应用，便于管理配置项
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", filePath(), "Path to the fg-apiserver configuration file.")
+}
+
+func run(opts *ServerOptions) error {
+	// 初始化 slog
+	initLog()
+	// 将 viper 中的配置解析到选项 opts 变量中.
+	if err := viper.Unmarshal(opts); err != nil {
+		return err
+	}
+
+	// 对命令行选项值进行校验.
+	if err := opts.Validate(); err != nil {
+		return err
+	}
+
+	// fmt.Printf("Read MySQL host from Viper: %s\n", viper.GetString("mysql.host"))
+	// fmt.Printf("Read MySQL username from opts: %s\n", opts.MySQLOptions.Username)
+	slog.Info("Read MySQL username from opts: %s\n", opts.MySQLOptions.Username)
+
+	jsonData, _ := json.MarshalIndent(opts, "", "  ")
+	// fmt.Println(string(jsonData))
+	slog.Info(string(jsonData))
+	return nil
+}
+
+// initLog 初始化全局日志实例
+func initLog() {
+	// 获取日志配置
+	format := viper.GetString("log.format") // 日志格式，支持：json、text
+	level := viper.GetString("log.level")   // 日志级别，支持：debug, info, warn, error
+	output := viper.GetString("log.output") // 日志输出路径，支持：标准输出stdout和文件
+
+	// 转换日志级别
+	var slevel slog.Level
+	switch level {
+	case "debug":
+		slevel = slog.LevelDebug
+	case "info":
+		slevel = slog.LevelInfo
+	case "warn":
+		slevel = slog.LevelWarn
+	case "error":
+		slevel = slog.LevelError
+	default:
+		slevel = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{Level: slevel}
+
+	var w io.Writer
+	var err error
+	// 转换日志输出路径
+	switch output {
+	case "":
+		w = os.Stdout
+	case "stdout":
+		w = os.Stdout
+	default:
+		w, err = os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// 转换日志格式
+	if err != nil {
+		return
+	}
+	var handler slog.Handler
+	switch format {
+	case "json":
+		handler = slog.NewJSONHandler(w, opts)
+	case "text":
+		handler = slog.NewTextHandler(w, opts)
+	default:
+		handler = slog.NewJSONHandler(w, opts)
+
+	}
+
+	// 设置全局的日志实例为自定义的日志实例
+	slog.SetDefault(slog.New(handler))
 }

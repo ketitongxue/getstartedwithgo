@@ -102,7 +102,7 @@ func run(opts *ServerOptions) error {
 
 	// fmt.Printf("Read MySQL host from Viper: %s\n", viper.GetString("mysql.host"))
 	// fmt.Printf("Read MySQL username from opts: %s\n", opts.MySQLOptions.Username)
-	slog.Info("Read MySQL username from opts: %s\n", opts.MySQLOptions.Username)
+	// slog.Info("Read MySQL username from opts: %s\n", opts.MySQLOptions.Username)
 
 	jsonData, _ := json.MarshalIndent(opts, "", "  ")
 	// fmt.Println(string(jsonData))
